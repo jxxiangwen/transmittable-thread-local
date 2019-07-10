@@ -33,9 +33,11 @@ public class TtlExecutorTransformlet implements JavassistTransformlet {
     private static final Map<String, String> PARAM_TYPE_NAME_TO_DECORATE_METHOD_CLASS = new HashMap<String, String>();
 
     static {
+        // 需要处理的类
         EXECUTOR_CLASS_NAMES.add("java.util.concurrent.ThreadPoolExecutor");
         EXECUTOR_CLASS_NAMES.add("java.util.concurrent.ScheduledThreadPoolExecutor");
 
+        // 需要处理的参数类型
         PARAM_TYPE_NAME_TO_DECORATE_METHOD_CLASS.put("java.lang.Runnable", "com.alibaba.ttl.TtlRunnable");
         PARAM_TYPE_NAME_TO_DECORATE_METHOD_CLASS.put("java.util.concurrent.Callable", "com.alibaba.ttl.TtlCallable");
     }

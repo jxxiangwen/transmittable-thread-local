@@ -117,6 +117,7 @@ public final class TtlAgent {
      * @see Logger#STDOUT
      */
     public static void premain(String agentArgs, @Nonnull Instrumentation inst) {
+        // 根据：和，将参数转为键值对
         kvs = splitCommaColonStringToKV(agentArgs);
 
         Logger.setLoggerImplType(getLogImplTypeFromAgentArgs(kvs));
@@ -137,6 +138,7 @@ public final class TtlAgent {
 
             logger.info("[TtlAgent.premain] end");
 
+            // 防止线程池做二次包装
             ttlAgentLoaded = true;
         } catch (Exception e) {
             String msg = "Fail to load TtlAgent , cause: " + e.toString();

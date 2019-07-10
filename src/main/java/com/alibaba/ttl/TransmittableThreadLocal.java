@@ -137,6 +137,8 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
     // 1. The value of holder is type Map<TransmittableThreadLocal<?>, ?> (WeakHashMap implementation),
     //    but it is used as *set*.
     // 2. WeakHashMap support null value.
+    // 使用这个可以非常方便的记录下当前线程一共有多少个TransmittableThreadLocal，方便在当前线程新建Thread或者Runnable的时候
+    // 可以抓取当前的TransmittableThreadLocal，方便Thread或者Runnable获取
     private static InheritableThreadLocal<Map<TransmittableThreadLocal<?>, ?>> holder =
             new InheritableThreadLocal<Map<TransmittableThreadLocal<?>, ?>>() {
                 @Override
@@ -152,6 +154,7 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
 
     private void addValue() {
         if (!holder.get().containsKey(this)) {
+            // 存储null是把这个map当成set来用
             holder.get().put(this, null); // WeakHashMap supports null value.
         }
     }
@@ -283,6 +286,8 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
          */
         @Nonnull
         public static Object capture() {
+            // 记录下当前线程的存在的TransmittableThreadLocal和当前存储的值，然后返回
+            // 为什么要记录下当前的值，因为后续线程运行的时候之前线程可能已经改变了值，但是需要使用之前的值
             Map<TransmittableThreadLocal<?>, Object> captured = new HashMap<TransmittableThreadLocal<?>, Object>();
             for (TransmittableThreadLocal<?> threadLocal : holder.get().keySet()) {
                 captured.put(threadLocal, threadLocal.copyValue());
@@ -305,25 +310,30 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
             Map<TransmittableThreadLocal<?>, Object> capturedMap = (Map<TransmittableThreadLocal<?>, Object>) captured;
             Map<TransmittableThreadLocal<?>, Object> backup = new HashMap<TransmittableThreadLocal<?>, Object>();
 
+            // 获取当线程中存在的TransmittableThreadLocal
             for (Iterator<? extends Map.Entry<TransmittableThreadLocal<?>, ?>> iterator = holder.get().entrySet().iterator();
                  iterator.hasNext(); ) {
                 Map.Entry<TransmittableThreadLocal<?>, ?> next = iterator.next();
                 TransmittableThreadLocal<?> threadLocal = next.getKey();
 
+                // 备份，保存起来，方便后续还原，自己不会还原，依赖于调用的对象根据返回值调用restore还原
                 // backup
                 backup.put(threadLocal, threadLocal.get());
 
                 // clear the TTL values that is not in captured
                 // avoid the extra TTL values after replay when run task
+                // 如果抓取的时候不存在这个threadLocal就需要删除，防止能取到
                 if (!capturedMap.containsKey(threadLocal)) {
+                    // 为什么要双删，因为查询的时候会双查
                     iterator.remove();
                     threadLocal.superRemove();
                 }
             }
-
+            // 把TransmittableThreadLocal中存储的值换成抓取时候的值
             // set TTL values to captured
             setTtlValuesTo(capturedMap);
 
+            // 调用钩子方法
             // call beforeExecute callback
             doExecuteCallback(true);
 
@@ -354,6 +364,7 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
             @SuppressWarnings("unchecked")
             Map<TransmittableThreadLocal<?>, Object> backupMap = (Map<TransmittableThreadLocal<?>, Object>) backup;
             // call afterExecute callback
+            // 调用钩子方法
             doExecuteCallback(false);
 
             for (Iterator<? extends Map.Entry<TransmittableThreadLocal<?>, ?>> iterator = holder.get().entrySet().iterator();
@@ -361,6 +372,7 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
                 Map.Entry<TransmittableThreadLocal<?>, ?> next = iterator.next();
                 TransmittableThreadLocal<?> threadLocal = next.getKey();
 
+                // 删除backup中不存在的值，不存在代表是replay之后的线程添加的
                 // clear the TTL values that is not in backup
                 // avoid the extra TTL values after restore
                 if (!backupMap.containsKey(threadLocal)) {
@@ -369,6 +381,7 @@ public class TransmittableThreadLocal<T> extends InheritableThreadLocal<T> {
                 }
             }
 
+            // 将TransmittableThreadLocal中存储的值换成replay之前的值，防止在调用中被修改
             // restore TTL values
             setTtlValuesTo(backupMap);
         }
